@@ -1,0 +1,42 @@
+- send() :
+	exactly the same as write() except that we can use flags in the last
+	argument.
+	flags that might be usefull:
+	- MSG_NOSIGNAL: send's return still gives an error and sets ernno, but the
+		SIGPIPE signal is NOT raised if the other end of the socket is closed.
+	- MSG_OOB: we should use this only to send an exception message. that would
+		be what we need to do on the client side to check if our server handles
+		this properly.
+	- MSG_DONTWAIT (since Linux 2.2)
+        Enables nonblocking operation; if the operation would
+        block, EAGAIN or EWOULDBLOCK is returned.  This provides
+        similar behavior to setting the O_NONBLOCK flag (via the
+        fcntl(2) F_SETFL operation), but differs in that
+        MSG_DONTWAIT is a per-call option, whereas O_NONBLOCK is a
+        setting on the open file description (see open(2)), which
+        will affect all threads in the calling process and as well
+        as other processes that hold file descriptors referring to
+        the same open file description.
+
+- recv() :
+	If no messages are available at the socket, the receive calls wait for a
+	message to arrive, unless the socket is nonblocking (see fcntl(2)), in
+	which case the value -1 is returned and the external variable errno is set
+	to EAGAIN or EWOULDBLOCK. The receive calls normally return any data
+	available, up to the requested amount, rather than waiting for receipt of
+	the full amount requested.
+
+	differences between recv() and read(), just the flags we can add to recv():
+	- MSG_OOB
+              This flag requests receipt of out-of-band data that would
+              not be received in the normal data stream.  Some protocols
+              place expedited data at the head of the normal data queue,
+              and thus this flag cannot be used with such protocols.
+	- MSG_DONTWAIT
+			An alternative to setting O_NONBLOCK, it is a per-call feature.
+
+- bind() : in the "socket address stcuture", for the IP Address:
+	Most of the time, we don’t care to specify a specific interface and can let
+	the operating system use whatever it wants. The special address for this is
+	0.0.0.0, defined by the symbolic constant INADDR_ANY.
+
