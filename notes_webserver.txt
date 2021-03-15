@@ -1,3 +1,156 @@
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+### MSG TO LOIC:	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+- add "int port" field in the structure t_srv.
+
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+### MSG TO LAMBERT:	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+### MSG TO CHARLIE:	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+### INFO:		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+- on linux, the max number of open Fildes per process is set to 1024.
+	note: Its currently set at 1024 on my mac and could be increased.
+
+- select() man: reference to self-pipe trick: pour ne pas avoir une succession
+	de signaux qui font de la merde (signal handler qui free 2 fois la meme
+	chose par exemple...), on a un signal handler qui va juste stack les
+	signaux, ceux ci seront traites dans la boucle principale en depilant.
+	La boucle principale va utiliser select: problem car on peut avoir
+	maintenant une race condition entre le dernier signal mis sur la stack de
+	signaux et le select qui est bloquant.
+	solution: le signal handler en plus de stacker les signaux, va aussi ecrire
+	dans un self-pipe (un fd!). juste une byte pour reveiller select!
+	select va reagir et verifier en premier si il y a eu un signal de recu,
+	puis purger ce pipe, puis traiter les autres fd_set*.
+	note: nonblocking I/O is used when reading from and writing to the pipe to
+	avoid reading from an empty "self-pipe" or writting in a pipe that is full.
+
+- select(): note: The operation of select() is not affected by the O_NONBLOCK
+	flag.
+
+- select(): adding with FD_SET() (or clearing with FD_CLR() ) twice the same
+	fd is not producting any error so ok.
+
+- select(): bug we can exploit for simplify the code (works only on linux)..
+	According to POSIX, select() should check all specified file
+       descriptors in the three file descriptor sets, up to the limit
+       nfds-1.  However, the current implementation ignores any file
+       descriptor in these sets that is greater than the maximum file
+       descriptor number that the process currently has open.
+
+- select(): it is possible that a fd marked as ready fro reading operation is
+	actually blocking. Thus it may be safer to use O_NONBLOCK on
+       sockets that should not block. HENCE THE O_NONBLOCK REQUIRED TO BE SET
+	   IN THE 42 SUBJECT?
+
+- only one select: le fd qui listen, on le met avec les autres fd en lecture,
+	puis on utilisera accept si bessoin.
+
+- The fd_set data type represents file descriptor sets for the select function.
+	It is actually a bit array (a bitfield of 1024) see FD_SETSIZE.
+
+- “Exceptional conditions” does not mean errors—errors are reported immediately
+	when an erroneous system call is executed, and do not constitute a state of
+	the descriptor.-Rather, they include conditions such as the presence of an
+	urgent message on a socket. (See Sockets, for information on urgent
+	messages.)
+
+- to see if a particular descriptor desc has input, use FD_ISSET (desc,
+	read-fds) after select returns.
+
+- If the socket was connected but the connection has broken, you get a SIGPIPE
+	signal for any use of send or write to that fd.
+
+- listen(): When the queue fills, new clients attempting to connect fail with
+	ECONNREFUSED
+
+- A SIGPIPE signal is raised if a process sends or receives on a broken stream;
+	this causes naive processes, which do not handle the signal, to exit.
+
+- You don't create your own struct sockaddr, you usually create a struct
+	sockaddr_in or a struct sockaddr_in6 depending on what IP version you're
+	using. In order to avoid trying to know what IP version you will be using,
+	you can use a struct sockaddr_storage which can hold either.
+
+- Signals regarding sockets:
+       When writing onto a connection-oriented socket that has been shut
+       down (by the local or the remote end) SIGPIPE is sent to the
+       writing process and EPIPE is returned.  The signal is not sent
+       when the write call specified the MSG_NOSIGNAL flag.
+
+- Select law (from: https://man7.org/linux/man-pages/man2/select_tut.2.html)
+       Many people who try to use select() come across behavior that is
+       difficult to understand and produces nonportable or borderline
+       results.  For instance, the above program is carefully written
+       not to block at any point, even though it does not set its file
+       descriptors to nonblocking mode.  It is easy to introduce subtle
+       errors that will remove the advantage of using select(), so here
+       is a list of essentials to watch for when using select().
+
+       1.  You should always try to use select() without a timeout.
+           Your program should have nothing to do if there is no data
+           available.  Code that depends on timeouts is not usually
+           portable and is difficult to debug.
+
+       2.  The value nfds must be properly calculated for efficiency as
+           explained above.
+
+       3.  No file descriptor must be added to any set if you do not
+           intend to check its result after the select() call, and
+           respond appropriately.  See next rule.
+
+       4.  After select() returns, all file descriptors in all sets
+           should be checked to see if they are ready.
+
+       5.  The functions read(2), recv(2), write(2), and send(2) do not
+           necessarily read/write the full amount of data that you have
+           requested.  If they do read/write the full amount, it's
+           because you have a low traffic load and a fast stream.  This
+           is not always going to be the case.  You should cope with the
+           case of your functions managing to send or receive only a
+           single byte.
+
+       6.  Never read/write only in single bytes at a time unless you
+           are really sure that you have a small amount of data to
+           process.  It is extremely inefficient not to read/write as
+           much data as you can buffer each time.  The buffers in the
+           example below are 1024 bytes although they could easily be
+           made larger.
+
+       7.  Calls to read(2), recv(2), write(2), send(2), and select()
+           can fail with the error EINTR, and calls to read(2), recv(2)
+           write(2), and send(2) can fail with errno set to EAGAIN
+           (EWOULDBLOCK).  These results must be properly managed (not
+           done properly above).  If your program is not going to
+           receive any signals, then it is unlikely you will get EINTR.
+           If your program does not set nonblocking I/O, you will not
+           get EAGAIN.
+
+       8.  Never call read(2), recv(2), write(2), or send(2) with a
+           buffer length of zero.
+
+       9.  If the functions read(2), recv(2), write(2), and send(2) fail
+           with errors other than those listed in 7., or one of the
+           input functions returns 0, indicating end of file, then you
+           should not pass that file descriptor to select() again.  In
+           the example below, I close the file descriptor immediately,
+           and then set it to -1 to prevent it being included in a set.
+
+       10. The timeout value must be initialized with each new call to
+           select(), since some operating systems modify the structure.
+           pselect() however does not modify its timeout structure.
+
+       11. Since select() modifies its file descriptor sets, if the call
+           is being used in a loop, then the sets must be reinitialized
+           before each call.
+
 - send() :
 	exactly the same as write() except that we can use flags in the last
 	argument.
@@ -26,7 +179,7 @@
 	available, up to the requested amount, rather than waiting for receipt of
 	the full amount requested.
 
-	differences between recv() and read(), just the flags we can add to recv():
+	Differences between recv() and read(), just the flags we can add to recv():
 	- MSG_OOB
               This flag requests receipt of out-of-band data that would
               not be received in the normal data stream.  Some protocols
@@ -40,3 +193,96 @@
 	the operating system use whatever it wants. The special address for this is
 	0.0.0.0, defined by the symbolic constant INADDR_ANY.
 
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+### To Try:		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-  select():	- timeout arg, set fields to ZERO for polling
+					(immediate return).
+				- or set arg to NULL, blocking... could be useful with threads?
+
+-	send() a msg with the MSG_OOB flag. this should be noticed in the
+	except-fds among the select() parameters
+
+- setsockopt():
+	- SO_REUSEPORT +++ FOR BONUSES
+			  For TCP sockets, this option allows accept(2) load
+              distribution in a multi-threaded server to be improved by
+              using a distinct listener socket for each thread.  This
+              provides improved load distribution as compared to
+              traditional techniques such using a single accept(2)ing
+              thread that distributes connections, or having multiple
+              threads that compete to accept(2) from the same socket.
+	- SO_OOBINLINE
+              If this option is enabled, out-of-band data is directly
+              placed into the receive data stream.  Otherwise, out-of-
+              band data is passed only when the MSG_OOB flag is set
+              during receiving.
+    - SO_RCVTIMEO and SO_SNDTIMEO ++ FOR POTENTIAL DEBUG
+              Specify the receiving or sending timeouts until reporting
+              an error. The argument is a struct timeval.  If an input
+              or output function blocks for this period of time, and
+              data has been sent or received, the return value of that
+              function will be the amount of data transferred; if no
+              data has been transferred and the timeout has been
+              reached, then -1 is returned with errno set to EAGAIN or
+              EWOULDBLOCK, or EINPROGRESS (for connect(2)) just as if
+              the socket was specified to be nonblocking.
+	- SO_RXQ_OVFL (since Linux 2.6.33) +++ FOR DEBUG OF BOUNCED INCOMING
+			CONNEXIONS ATTEMPTS OCCURING AT THE SAME TIME.
+              Indicates that an unsigned 32-bit value ancillary message
+              (cmsg) should be attached to received skbs indicating the
+              number of packets dropped by the socket since its
+              creation.
+	- SO_RCVBUF
+              Sets or gets the maximum socket receive buffer in bytes.
+	- SO_SNDBUF
+              Sets or gets the maximum socket send buffer in bytes.
+	- SO_KEEPALIVE: send some keepalive signals periodically according to
+		underlying protocols. (TCP in ou case...)
+	- SO_LINGER: keep fulfilling action before closing a socket.
+	- SO_INCOMING_CPU (only if doing bonuses with CPUS). Sets or gets the CPU
+		affinity of a socket.
+	
+- nfds  (parameter of select() function): the highest fd plus on
+	try to make a bitwise OR of the 3 bitfields and check the highest activated
+	bit out of 1024? and then of course do a plus one.
+
+
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+### To Check:	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+## %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+- ONLY on linux, the timeval structure is modified by a call to select()!
+
+- select modifies the fd_set we sent as parameters. so they will need to be
+	reset in each loop.
+
+- Any signal will cause select to return immediately
+
+- signal SIGURG vs select.
+	"When a socket finds that out-of-band data are on their way, it sends a
+	SIGURG signal to the owner process or process group of the socket."
+	=> implement a signal handling, then use recv with the MSG_OOB flag.
+	=> or use select() and its exceptional conditions parameter.
+	note: If you try to read the out-of-band data before it arrives, recv fails
+	with an EWOULDBLOCK error.
+
+- when done with a socket, just use close(). If there is still data waiting to
+	be transmitted over the connection, normally close tries to complete this
+	transmission. You can control this behavior using the SO_LINGER socket
+	option to specify a timeout period;
+
+- select(): param "writefds"
+              The file descriptors in this set are watched to see if
+              they are ready for writing.  A file descriptor is ready
+              for writing if a write operation will not block.  However,
+              even if a file descriptor indicates as writable, a large
+              write may still block.
+			  -> HOW MUCH CAN WE WRITE TO AVOID ANY BLOCKING?
+
+- select(): since we set the file descriptors to O_NONBLOCK, when writing and
+	reading, it can be interrupted with a EAGAIN(EWOULDBLOCK) signal, this
+	should be handled.
+
+- check that we dont have two server blocks that listen on the same port ?
