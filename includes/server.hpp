@@ -6,7 +6,7 @@
 /*   By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/03/15 02:17:15 by charmstr          #+#    #+#             */
-/*   Updated: 2021/03/17 01:57:56 by charmstr         ###   ########.fr       */
+/*   Updated: 2021/03/17 07:58:07 by charmstr         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -29,22 +29,18 @@ virtual	~Server(void);
 		//main function of our server, infinite loop in which we use select.
 		int start_work();
 
-		//should clean the memory,close the remaining opened sockets and files.
-		int shutdown();
-
-
 	private:
 		/* member functions*/
 
 		//call select after setting up the fd_sets
 		int call_select();
 
-		//builds 
+		//could be non method functino.
 		int build_listening_socket(t_srv &server);
 
 		//function that will try to see if new conexions are pending and then
 		//call accept, and add a request object into the list of services.
-		int check_incoming_connexions();
+		void check_incoming_connexions();
 
 		/* function that will try to keep on processing any service object that
 		** is part of the list of services currently being processed. */
@@ -52,6 +48,9 @@ virtual	~Server(void);
 
 		//set up the listening sockets 
 		int set_up_pair_fd_listen_t_srv(std::vector<t_srv> &servers);
+		
+		//sets the O_NONBLOCK flags could be a non method function...
+		void	set_nonblock(int socket);
 
 		//adds a file desctiptor a fd_set and into the list_all_fd.
 		void add_fd_to_real_set(int fd, fd_set& set);

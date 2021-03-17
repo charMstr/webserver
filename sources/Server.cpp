@@ -6,45 +6,13 @@
 /*   By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/03/15 02:17:15 by charmstr          #+#    #+#             */
-/*   Updated: 2021/03/17 03:20:09 by charmstr         ###   ########.fr       */
+/*   Updated: 2021/03/17 07:59:42 by charmstr         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/server.hpp"
 #include "../includes/exceptions.hpp"
-
-/*
-** delete this func when loic is done.
-*/
-static void dummy_server_init(t_srv &server, const char *str, int port)
-{
-	server.root = "./";
-	server.server_name = str;
-	server.index = "index.html";
-	server.error = "error.html";
-	server.cli_max_size = 4096;
-	server.methods.bf = GET;
-	server.port = htons(port);
-}
-
-/*
-** delete this function when loic is done.
-*/
-void 	dummy_servers_creation(std::vector<t_srv> *servers)
-{
-	t_srv virtual_server1;
-	t_srv virtual_server2;
-	t_srv virtual_server3;
-	dummy_server_init(virtual_server1, "server1", 8080);
-	dummy_server_init(virtual_server2, "server2", 8081);
-	dummy_server_init(virtual_server3, "server3", 8082);
-	virtual_server1.host.sin_addr.s_addr = htonl(INADDR_ANY);
-	virtual_server2.host.sin_addr.s_addr = htonl(INADDR_ANY);
-	virtual_server3.host.sin_addr.s_addr = htonl(INADDR_ANY);
-	servers->push_back(virtual_server1);
-	servers->push_back(virtual_server2);
-	servers->push_back(virtual_server3);
-}
+#include "../includes/server_utils.hpp"
 
 /*
 ** Constructor for the server object. It will initialise all the fd_sets which
@@ -63,6 +31,39 @@ Server::Server(void)
 
 	//DEBUG USAGE
 	debug_counter = 0;
+	return ;
+}
+
+/*
+** destructor for the Server class. What needs to be cleaned:
+** - vector_listen: in each cell a fd_listen which need to be closed. 	OK
+** - list_services: contains a list of fd to be closed  				NON OK
+** - list_services: contains a ptr to object allocated on the heap.		NON OK
+**
+** VALIDATE THE "NON OK" parts with some tests.
+*/
+
+Server::~Server(void)
+{
+	std::cout << "DEBUG: closing listening sockets:" << std::endl;
+	for (std::vector<t_pair_fd_listen_t_srv>::iterator it \
+			= vector_listen.begin(); it != vector_listen.end(); it++)
+	{
+		printf("DEBUG:		closing fd = %d\n", (*it).fd_listen);
+		close((*it).fd_listen);	
+	}
+	std::cout << "DEBUG: closing all fd from list_services" << std::endl;
+	for (std::list<t_pair_fd_service>::iterator it = list_services.begin(); \
+			it != list_services.end(); it++)
+	{
+		for (std::list<int>::iterator nested_it = it->fd_list.begin(); \
+			nested_it != it->fd_list.end(); nested_it++)
+		{
+			printf("DEBUG:		closing fd = %d\n", *nested_it);
+			close(*nested_it);
+		}
+		delete(it->ptr);
+	}
 	return ;
 }
 
@@ -147,34 +148,6 @@ int Server::set_up_pair_fd_listen_t_srv(std::vector<t_srv> &virtual_servers)
 }
 
 /*
-** destructor for the Server class. What needs to be cleaned:
-** - vector_listen: in each cell a fd_listen which need to be closed. 	OK
-** - list_services: contains a list of fd to be closed  				NON OK
-*/
-
-Server::~Server(void)
-{
-	std::cout << "DEBUG: closing listening sockets:" << std::endl;
-	for (std::vector<t_pair_fd_listen_t_srv>::iterator it \
-			= vector_listen.begin(); it != vector_listen.end(); it++)
-	{
-		printf("DEBUG:		closing fd = %d\n", (*it).fd_listen);
-		close((*it).fd_listen);	
-	}
-	std::cout << "DEBUG: closing all fd from list_services" << std::endl;
-	for (std::list<t_pair_fd_service>::iterator it = list_services.begin(); \
-			it != list_services.end(); it++)
-	{
-		for (std::list<int>::iterator nested_it = it->fd_list.begin(); \
-			nested_it != it->fd_list.end(); nested_it++)
-			{
-				printf("DEBUG:		closing fd = %d\n", *nested_it);
-			}
-	}
-	return ;
-}
-
-/*
 ** This member function will build a listening socket for a given virtual
 ** server.
 **
@@ -210,6 +183,15 @@ int Server::build_listening_socket(t_srv &server)
 		throw exception_webserver(strerror(errno), " listen()",INITIALISING);
 	}
 	return sock;
+}
+
+/*
+** this function will set the O_NONBLOCK flag on already accepted sockets
+*/
+
+void Server::set_nonblock(int socket) {
+    if ((fcntl(socket, F_SETFL, O_NONBLOCK)) == -1)
+		throw exception_webserver(strerror(errno), " fcntl()", WORKING);
 }
 
 /*
@@ -260,26 +242,6 @@ void Server::remove_fd_from_real_set(int fd, fd_set& set)
 }
 
 /*
-** DEBUG FUNCTION: displays each member of the vector pairs_fd_listen_t_srv
-*/
-
-void 	Server::debug_vector_listen(void) //OK
-{
-	std::cout << std::endl << "DEBUG FUNCTION: debug_vector_listen()" << std::endl;
-	std::cout << "the number of virtual servers is: " <<  vector_listen.size() << std::endl;
-	std::cout << "the number of recorded fds is: " <<  fd_set_real.fd_mixed_list.size() << std::endl;
-	for (std::vector<t_pair_fd_listen_t_srv>::iterator it = vector_listen.begin(); \
-			it != vector_listen.end(); it++)
-	{
-		std::cout << "fd_listen = "<< it->fd_listen;
-		std::cout << " and server_name is: " << it->v_server.server_name \
-			<< std::endl;
-	}
-	std::cout << "first fd of the mixed list + 1 = " << fd_set_real.fd_mixed_list.front() + 1 << std::endl;
-	std::cout << std::endl;
-}
-
-/*
 ** start_work: This function will be the entry point to the main work of the
 ** server, it is the core function that loops forever and calls select() until
 ** the server is being shut down manually or a problem occurs.
@@ -296,7 +258,8 @@ void 	Server::debug_vector_listen(void) //OK
 ** 	- signals received by our application
 ** 	- fatal error occured
 **
-**	WARNING: in this function exception can be thrown (in call_select() ...)
+**	WARNING: in this function exceptions can be thrown in call_select(),
+**		check_incoming_connexions()...
 **
 **	RETURN: ... to be continued.
 */
@@ -306,8 +269,9 @@ int Server::start_work()
 
 	while (1) //infinite loop of the server.
 	{
+		usleep(1);
+		std::cout << "in loop" << std::endl;
 		res_select = call_select();
-		//if res_select = -1 , handle the error (call errno() and quit?).
 
 		//1) function that checks if we dont have an incoming connexion
 		// (compares fd_set_copy.fd_set_read with the all the fd in the vector
@@ -334,40 +298,66 @@ int Server::start_work()
 ** Service. We finally add a pair made of this fd_client and this
 ** request_service to the list of processed services.
 **
-** RETURN: ....
+** NOTE: the fd_client is added to set_fd_read, but also set to be non-blocking
+** so that upcoming writes or reads wont be blocking on this socket.
+**
+** NOTE: for now, the listening sockets are still blocking. to be changed if
+** our server uses signals.
+**
+** WARNING: throwing custom exceptions
 */
-int Server::check_incoming_connexions()
-{
-	socklen_t	addr_size;
-	int			fd_client;
 
-	for (std::vector<t_pair_fd_listen_t_srv>::iterator it = vector_listen.begin(); it != vector_listen.end(); it++)
+void Server::check_incoming_connexions()
+{
+	socklen_t				client_addr_size;
+	struct sockaddr_storage	client_addr; //can hold either ipv4 or ipv6
+	int						fd_client;
+
+	for (std::vector<t_pair_fd_listen_t_srv>::iterator it = vector_listen.begin(); \
+			it != vector_listen.end(); it++)
 	{
-		//yes means we need to initiate a new connextion etc...
+		//yes means we need to accept connexion and create a request_service
 		if (FD_ISSET(it->fd_listen, &fd_set_copy.fd_set_read))
 		{
 			t_pair_fd_service pair;
 
-			addr_size = sizeof(struct sockaddr_in);
-			//note: those fd_listen should be set to non blocking before!!!
-			fd_client = accept(it->fd_listen, \
-					(struct sockaddr *)&(it->v_server.host), &addr_size);
-			//note: it can happen that operation would still be blocking..
-			//we would have to handle EWOULDBLOCK signal in that case.
-			if (fd_client < 0)
+			client_addr_size = sizeof(struct sockaddr_storage);
+			//note: those fd_listen should be set to non blocking before?
+			//maybe in the case our program will need to use signals, for cgi
+			//impletmenation for example... but probably pipes will do.
+			if ((fd_client = accept(it->fd_listen, \
+					(struct sockaddr *)&client_addr, &client_addr_size)) < 0)
 			{
-				;//handle error (use errno...).
+				throw exception_webserver(strerror(errno), " accept()", \
+						WORKING);	
 			}
-			//add new fd to fd_set.
-			add_fd_to_real_set(fd_client, fd_set_real.fd_set_read);
-
-			// should throw an exception if allocation fails.
-			pair.ptr = new Request_service();
-			pair.fd_list.push_back(fd_client);
-			list_services.push_back(pair);
+			set_nonblock(fd_client);	
+			try
+			{
+				pair.ptr = new Request_service(client_addr, client_addr_size);
+			}
+			catch (std::exception &e)
+			{
+				close(fd_client); //was never added to the list_services.
+				throw exception_webserver(strerror(errno), \
+						" Request_service()", WORKING);
+			}
+			try
+			{
+				//add new fd to fd_set. can throw.
+				add_fd_to_real_set(fd_client, fd_set_real.fd_set_read);	
+				pair.fd_list.push_back(fd_client);
+				list_services.push_back(pair);		
+			}
+			catch (std::exception &e)
+			{
+				delete(pair.ptr);
+				close(fd_client); //was never added to list_services.
+				throw exception_webserver(strerror(errno), \
+						" check_incoming_connexions()", WORKING);
+			}
 		}
-	};
-	return (0);
+	}
 }
 
 /*
@@ -419,16 +409,11 @@ int Server::call_select()
 	FD_COPY(&fd_set_real.fd_set_except, &fd_set_copy.fd_set_except);
 
 	// warning: select will be woken up if a signal occurs. use the self-pipe
-	// trick here maybe?
+	// trick here maybe? But for now we dont use signals...
 
 	if ((res = select(fd_set_real.fd_mixed_list.front() + 1, 
 				&fd_set_copy.fd_set_read, &fd_set_copy.fd_set_write, \
 				&fd_set_copy.fd_set_except, NULL)) == -1)
 		throw exception_webserver(strerror(errno), " select()", WORKING);
 	return (res);
-}
-
-int Server::shutdown()
-{
-	return (0);
 }

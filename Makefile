@@ -6,7 +6,7 @@
 #    By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2020/01/27 17:46:05 by charmstr          #+#    #+#              #
-#    Updated: 2021/03/16 22:51:18 by charmstr         ###   ########.fr        #
+#    Updated: 2021/03/17 06:16:04 by charmstr         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -56,7 +56,10 @@ INCLUDE_PATH = ./includes/
 # HERE
 SRC_FILES =	main\
 			Server\
-			request_service
+			server_utils\
+			request_service\
+			debug_functions
+
 
 SRC = $(patsubst %, $(SRC_PATH)%.cpp, $(SRC_FILES))
 OBJ = $(patsubst %, $(OBJ_PATH)%.o, $(basename $(notdir $(SRC))))
@@ -70,6 +73,7 @@ OBJ = $(patsubst %, $(OBJ_PATH)%.o, $(basename $(notdir $(SRC))))
 HPP_FILES = webserver\
 			exceptions\
 			server\
+			server_utils\
 			http_methods\
 			Service\
 			request_service

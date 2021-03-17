@@ -6,7 +6,7 @@
 /*   By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/03/15 10:20:55 by charmstr          #+#    #+#             */
-/*   Updated: 2021/03/15 13:16:55 by charmstr         ###   ########.fr       */
+/*   Updated: 2021/03/17 07:06:18 by charmstr         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -33,6 +33,7 @@
 class Service
 {
 	public:
+		virtual ~Service() {}
 		virtual int read(int fd) = 0;
 		virtual int write(int fd) = 0;
 };

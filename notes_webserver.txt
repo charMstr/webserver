@@ -45,10 +45,12 @@
        descriptor in these sets that is greater than the maximum file
        descriptor number that the process currently has open.
 
-- select(): it is possible that a fd marked as ready fro reading operation is
-	actually blocking. Thus it may be safer to use O_NONBLOCK on
-       sockets that should not block. HENCE THE O_NONBLOCK REQUIRED TO BE SET
-	   IN THE 42 SUBJECT?
+- select(): it is possible that a fd marked as ready for reading operation is
+	actually blocking.This could for example happen when data has arrived but
+	upon examination has the wrong checksum and is discarded. There may be
+	other circumstances in which a file descriptor is spuriously reported as
+	ready. Thus it may be safer to use O_NONBLOCK on sockets that should not
+	block. HENCE THE O_NONBLOCK REQUIRED TO BE SET IN THE 42 SUBJECT?
 
 - only one select: le fd qui listen, on le met avec les autres fd en lecture,
 	puis on utilisera accept si bessoin.
@@ -210,7 +212,7 @@
               distribution in a multi-threaded server to be improved by
               using a distinct listener socket for each thread.  This
               provides improved load distribution as compared to
-              traditional techniques such using a single accept(2)ing
+              traditional techniques such as using a single accept(2)ing
               thread that distributes connections, or having multiple
               threads that compete to accept(2) from the same socket.
 	- SO_OOBINLINE

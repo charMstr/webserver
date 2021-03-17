@@ -6,7 +6,7 @@
 /*   By: lfalkau <lfalkau@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/01/22 08:54:24 by lfalkau           #+#    #+#             */
-/*   Updated: 2021/03/16 21:17:25 by charmstr         ###   ########.fr       */
+/*   Updated: 2021/03/17 07:54:19 by charmstr         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,6 +18,7 @@
 # include <sys/select.h> //declaration of the "fd_set" type and select().
 # include <stdlib.h>  //needed for "NULL" declaration.
 # include <unistd.h> //needed by open().
+#include <fcntl.h> //for fcntl, seting O_NONBLOCK flag.
 
 # include <exception>
 # include <iostream>
