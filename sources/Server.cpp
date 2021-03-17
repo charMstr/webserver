@@ -6,11 +6,12 @@
 /*   By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/03/15 02:17:15 by charmstr          #+#    #+#             */
-/*   Updated: 2021/03/15 13:37:56 by charmstr         ###   ########.fr       */
+/*   Updated: 2021/03/17 03:20:09 by charmstr         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/server.hpp"
+#include "../includes/exceptions.hpp"
 
 /*
 ** delete this func when loic is done.
@@ -46,27 +47,50 @@ void 	dummy_servers_creation(std::vector<t_srv> *servers)
 }
 
 /*
-** Constructor for the server object. It will initialise all the fd_sets that
-** will be our database of fildescriptors to check upon with select().
-** Then it will build a member variable, which is a vector containing pairs
-** made of a virtual server and a listening socket created for it.
+** Constructor for the server object. It will initialise all the fd_sets which
+** will play the role of databases for the fildescriptors to be monitored by
+** select().
 **
-** PARAMETERS:
-** 	- servers: It is a vector of structures yielded after parsing the
-** 	configuration file. Each structure represents a virtual server and its
-** 	informations.
-**
-** Note: the fd_sets are reset at the very start, then FD_SET() and FD_CLR()
+** NOTE: the fd_sets are reset at the very start, then FD_SET() and FD_CLR()
 **	should be used in the rest of the program.
 */
 
-Server::Server(const std::vector<t_srv> &servers)
+Server::Server(void)
 {	
 	FD_ZERO(&fd_set_real.fd_set_read);
 	FD_ZERO(&fd_set_real.fd_set_write);
 	FD_ZERO(&fd_set_real.fd_set_except);
 
-	(void )servers;
+	//DEBUG USAGE
+	debug_counter = 0;
+	return ;
+}
+
+/*
+** THIS FUNCTION SHOULD BE MERGED WITH PRIVATE METHODE
+** set_up_pair_fd_listen_t_srv()
+**
+** This public method will take care of setting up our server before we can
+** actually start the main loop with the start_work() method.
+**
+** It will build a member variable, which is a vector containing pairs made of
+** a virtual server and a listening socket created for it.
+**
+** PARAMETERS:
+**	- virtual_servers: It is a vector of structures yielded after parsing the
+** 	configuration file. Each structure represents a virtual server and its
+** 	informations.
+**
+** RETURN: void
+** WARNING: This method should throw an exception if
+**	- the creation of sockets listening on the network fails.
+**	- if the allocation of the vector fails.
+*/
+
+void 
+Server::initialise(const std::vector<t_srv> &virtual_servers)
+{
+	(void )virtual_servers;
 
 	//DUMMY FUNCTION that creates a fake vector of virtuals servers for now.
 	std::vector<t_srv> dummy_servers;
@@ -75,11 +99,78 @@ Server::Server(const std::vector<t_srv> &servers)
 	//should throw if an error occured.
 	set_up_pair_fd_listen_t_srv(dummy_servers);
 	debug_vector_listen();
-	return ;
 }
+
+/*
+** This function should be merged with the public method initialise().
+**
+** This function populates a member variable named vector_listen. vector_listen
+** contains in each cell a structure that is a pair. The pair is made of a
+** virtual server from the parameter servers, and a listening socket created
+** for it.
+**
+** PARAMETERS: servers, vector of virutal servers yielded from the parsing.
+**
+** NOTE: Each fd_listen created is added to fd_set_real.fd_set_read;
+**
+** RETURN: void
+** WARNING: /!\ this function can throw exceptions if:
+** 	- listening socket creation fails: exception_webserver thrown.
+** 	- bad alloc happens with vector_listen, or fd_set_real.fd_mixed_list. Those
+** 		exceptions are caught and rethrow in the form of a exception_webserver.
+**
+*/
+int Server::set_up_pair_fd_listen_t_srv(std::vector<t_srv> &virtual_servers)
+{
+	t_pair_fd_listen_t_srv pair;
+	for (std::vector<t_srv>::iterator it = virtual_servers.begin(); \
+			it != virtual_servers.end(); it++)
+	{
+		pair.v_server = *it; 
+		//this can throw an exception_webserver.
+		pair.fd_listen = build_listening_socket(*it);
+		try //this can throw with bad_alloc from std::list, or std::vector
+		{
+			add_fd_to_real_set(pair.fd_listen, fd_set_real.fd_set_read);
+			vector_listen.push_back(pair);
+		}
+		catch (std::exception &e)
+		{
+			//closing the fd opened and placed in that pair. The pair was never
+			//added to vector_listen
+			close(pair.fd_listen);
+			// and rethrow our custom exception type.
+			throw exception_webserver(strerror(errno), INITIALISING);
+		}
+	}
+	return (0);
+}
+
+/*
+** destructor for the Server class. What needs to be cleaned:
+** - vector_listen: in each cell a fd_listen which need to be closed. 	OK
+** - list_services: contains a list of fd to be closed  				NON OK
+*/
 
 Server::~Server(void)
 {
+	std::cout << "DEBUG: closing listening sockets:" << std::endl;
+	for (std::vector<t_pair_fd_listen_t_srv>::iterator it \
+			= vector_listen.begin(); it != vector_listen.end(); it++)
+	{
+		printf("DEBUG:		closing fd = %d\n", (*it).fd_listen);
+		close((*it).fd_listen);	
+	}
+	std::cout << "DEBUG: closing all fd from list_services" << std::endl;
+	for (std::list<t_pair_fd_service>::iterator it = list_services.begin(); \
+			it != list_services.end(); it++)
+	{
+		for (std::list<int>::iterator nested_it = it->fd_list.begin(); \
+			nested_it != it->fd_list.end(); nested_it++)
+			{
+				printf("DEBUG:		closing fd = %d\n", *nested_it);
+			}
+	}
 	return ;
 }
 
@@ -87,19 +178,22 @@ Server::~Server(void)
 ** This member function will build a listening socket for a given virtual
 ** server.
 **
-** /!\ This function Throws errors.
+** PARAMETERS:
+**	- server: a structure representing a virtual server.
+**
+** WARNING/!\: This function throws an exception and closes the listening
+** 	socket in case of failure.
 **
 ** RETURNS: the socket we created (its file descriptor).
 */
-int build_listening_socket(t_srv &server)
+int Server::build_listening_socket(t_srv &server)
 {
 	int sock;
 
 	/* Create the socket. */
-	sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (sock < 0)
+	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
-		;//THROW ERROR "socket creation failure" (and use errno as well maybe)
+		throw exception_webserver(strerror(errno), " socket()", INITIALISING);
 	}
 	/* Give the socket a name. */
 	server.host.sin_family = AF_INET;
@@ -107,22 +201,25 @@ int build_listening_socket(t_srv &server)
 	server.host.sin_addr.s_addr = htonl (INADDR_ANY); //same, dont do twice htonl
 	if (bind (sock, (struct sockaddr *) &server.host, sizeof (server.host)) < 0)
 	{
-		; //TRHOW AN ERROR "bind failure"
+		close (sock);
+		throw exception_webserver(strerror(errno), " bind()", INITIALISING);
 	}
 	if (listen(sock, BACKLOG) < 0)
 	{
-		; //TRHOW AN ERROR "listen failure" and use errno as well.
+		close (sock);
+		throw exception_webserver(strerror(errno), " listen()",INITIALISING);
 	}
 	return sock;
 }
 
 /*
 ** This function will add a fd to the fd_set given as parameter. The fd_set
-** should be part of the fd_set_real structure and not its copy.
-** It will also add the fd to the ordered list containing all mixed fd which
-** helps us know the first argument to the select function (highest fd + 1).
+** should be part of the fd_set_real structure and not its copy (fd_set_copy).
+** It will also add the fd to the ordered list fd_mixed_list, containing all
+** fd types to be monitored by select(). This list helps us in knowing the
+** first argument to the select function (highest fd among the mixed_fd + 1).
 **
-** /!\ using std::list, this function can throw an exception.
+** WARNING/!\: this function can throw a bad_alloc exception.
 **
 ** See the function remove_fd_from_real_set(), which does the exact opposite.
 */
@@ -183,31 +280,7 @@ void 	Server::debug_vector_listen(void) //OK
 }
 
 /*
-** This function will loop over the vector of virtual servers yielded from the
-** parsing and create for each of them a listening socket. It places both in a
-** structure and add it to a vector. The vector we add the pair to is called
-** vector_listen and is a member variable of the Server class.
-**
-** Note: Each fd_listen created is added to fd_set_real.fd_set_read;
-**
-** /!\ this function can throw exceptions.
-*/
-int Server::set_up_pair_fd_listen_t_srv(std::vector<t_srv> &servers)
-{
-	t_pair_fd_listen_t_srv pair;
-	for (std::vector<t_srv>::iterator it = servers.begin(); \
-			it != servers.end(); it++)
-	{
-		pair.v_server = *it; 
-		pair.fd_listen = build_listening_socket(*it);
-		vector_listen.push_back(pair);
-		add_fd_to_real_set(pair.fd_listen, fd_set_real.fd_set_read);
-	}
-	return (0);
-}
-
-/*
-** start_work: This function will be the entry point of the main work of the
+** start_work: This function will be the entry point to the main work of the
 ** server, it is the core function that loops forever and calls select() until
 ** the server is being shut down manually or a problem occurs.
 **
@@ -221,7 +294,9 @@ int Server::set_up_pair_fd_listen_t_srv(std::vector<t_srv> &servers)
 **
 **	NOTE: To get out of the infinite loop:
 ** 	- signals received by our application
-** 	- fatal error occured.
+** 	- fatal error occured
+**
+**	WARNING: in this function exception can be thrown (in call_select() ...)
 **
 **	RETURN: ... to be continued.
 */
@@ -327,11 +402,14 @@ int Server::resume_processed_services()
 ** Note: In the fd_sets, only the file descriptors upon which we can operate
 ** some non blocking I/O operations will remain.
 **
-** RETURN:	-1 error
-** 			or the number of fd still activated in the fd_set_copy's sets.
+** WARNING: throwing custom exception if select() fails
+**
+** RETURN:	the number of fd still activated in the fd_set_copy's sets.
 */
 int Server::call_select()
 {
+	int res;
+
 	//recopies all the real fd_sets into the copy sets.
 	FD_ZERO(&fd_set_copy.fd_set_write);
 	FD_ZERO(&fd_set_copy.fd_set_read);
@@ -340,9 +418,14 @@ int Server::call_select()
 	FD_COPY(&fd_set_real.fd_set_read, &fd_set_copy.fd_set_read);
 	FD_COPY(&fd_set_real.fd_set_except, &fd_set_copy.fd_set_except);
 
-	return (select(fd_set_real.fd_mixed_list.front() + 1, 
+	// warning: select will be woken up if a signal occurs. use the self-pipe
+	// trick here maybe?
+
+	if ((res = select(fd_set_real.fd_mixed_list.front() + 1, 
 				&fd_set_copy.fd_set_read, &fd_set_copy.fd_set_write, \
-				&fd_set_copy.fd_set_except, NULL));
+				&fd_set_copy.fd_set_except, NULL)) == -1)
+		throw exception_webserver(strerror(errno), " select()", WORKING);
+	return (res);
 }
 
 int Server::shutdown()

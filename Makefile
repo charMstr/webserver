@@ -6,7 +6,7 @@
 #    By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2020/01/27 17:46:05 by charmstr          #+#    #+#              #
-#    Updated: 2021/03/15 13:08:53 by charmstr         ###   ########.fr        #
+#    Updated: 2021/03/16 22:51:18 by charmstr         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -68,6 +68,7 @@ OBJ = $(patsubst %, $(OBJ_PATH)%.o, $(basename $(notdir $(SRC))))
 ###############################################################################
 #HERE
 HPP_FILES = webserver\
+			exceptions\
 			server\
 			http_methods\
 			Service\

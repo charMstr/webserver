@@ -6,20 +6,23 @@
 /*   By: lfalkau <lfalkau@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/01/22 08:54:24 by lfalkau           #+#    #+#             */
-/*   Updated: 2021/03/15 13:11:09 by charmstr         ###   ########.fr       */
+/*   Updated: 2021/03/16 21:17:25 by charmstr         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #ifndef WEBSERV_HPP
 #define WEBSERV_HPP
 
-# include <netinet/in.h>
-# include <vector>
-# include <sys/select.h> //declaration of the "fd_set" type.
+# include <netinet/in.h> //for inet_addr()
+//# include <arpa/inet.h> //for inet_addr() as well ?
+# include <sys/select.h> //declaration of the "fd_set" type and select().
 # include <stdlib.h>  //needed for "NULL" declaration.
-# include <arpa/inet.h> //for inet_addr()
+# include <unistd.h> //needed by open().
+
+# include <exception>
 # include <iostream>
 # include <list>
+# include <vector>
 
 # include "http_methods.hpp"
 # include "../includes/Service.hpp"
@@ -29,7 +32,6 @@
 # define DFL_CNF_PATH "./cnf/webserv.conf"
 # define DFL_CNF_MAX_SIZE 4096
 # define BACKLOG 128 //max number of pending connexion on a listening socket.
-
 
 /*
 **	describes a location context for a specific server
@@ -107,8 +109,6 @@ typedef struct	s_pair_fd_listen_t_srv
 **		get_method which gives us a derived object that reads on one fd (open
 **		file) and writes on another fd(connexion socket).
 */
-
-
 typedef struct	s_pair_fd_service
 {
 	std::list<int> fd_list;
