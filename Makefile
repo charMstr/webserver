@@ -6,7 +6,7 @@
 #    By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2020/01/27 17:46:05 by charmstr          #+#    #+#              #
-#    Updated: 2021/03/17 06:16:04 by charmstr         ###   ########.fr        #
+#    Updated: 2021/03/17 13:20:50 by lspiess          ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -31,7 +31,7 @@ else ifeq ($(f), d)
 CXXFLAGS 	+= -D DEBUG=1
 VALGRIND 	=
 else ifeq ($(f), f)
-CXXFLAGS 	+=  -fsanitize=address,undefined -g3
+CXXFLAGS 	+=  -fsanitize=address,undefined -g3 -ferror-limit=1
 VALGRIND 	=
 else ifeq ($(f), v)
 CXXFLAGS 		+= -g3

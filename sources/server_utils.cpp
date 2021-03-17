@@ -6,7 +6,7 @@
 /*   By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/03/17 06:05:00 by charmstr          #+#    #+#             */
-/*   Updated: 2021/03/17 07:59:16 by charmstr         ###   ########.fr       */
+/*   Updated: 2021/03/17 13:33:56 by lspiess          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,7 +24,7 @@ void dummy_server_init(t_srv &server, const char *str, int port)
 	server.error = "error.html";
 	server.cli_max_size = 4096;
 	server.methods.bf = GET;
-	server.port = htons(port);
+	server.port = port;
 }
 
 /*

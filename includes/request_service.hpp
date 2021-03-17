@@ -6,7 +6,7 @@
 /*   By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/03/15 12:45:41 by charmstr          #+#    #+#             */
-/*   Updated: 2021/03/17 07:34:05 by charmstr         ###   ########.fr       */
+/*   Updated: 2021/03/17 13:47:26 by lspiess          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -48,6 +48,7 @@ virtual	~Request_service(void);
 		char							buffer[1024];
 		int								buffer_size;
 		int 							nb_char_read;
+		std::string						request;
 };
 
 #endif

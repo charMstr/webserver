@@ -6,7 +6,7 @@
 /*   By: charmstr <charmstr@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/03/15 02:17:15 by charmstr          #+#    #+#             */
-/*   Updated: 2021/03/17 07:59:42 by charmstr         ###   ########.fr       */
+/*   Updated: 2021/03/17 13:23:56 by lspiess          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -269,9 +269,9 @@ int Server::start_work()
 
 	while (1) //infinite loop of the server.
 	{
-		usleep(1);
-		std::cout << "in loop" << std::endl;
+		std::cout << "Entering select()" << std::endl;
 		res_select = call_select();
+		std::cout << "Out of select()" << std::endl;
 
 		//1) function that checks if we dont have an incoming connexion
 		// (compares fd_set_copy.fd_set_read with the all the fd in the vector
@@ -379,8 +379,32 @@ int Server::resume_processed_services()
 		/* for a given link (*it), go through each fd in the fd_list, then if
 		** there is is a match call either read() or write().
 		*/
-		;			
+		for (std::list<int>::iterator i = (*it).fd_list.begin();
+				i != (*it).fd_list.end(); ++i)
+		{
+			/* for every fd in a given link's fd_list, check if they have a
+			** match in one of the three t_fd_set_copy
+			*/
+			int fd = *i;
+			bool issetread, issetwrite, issetexcept;
+			issetread = (FD_ISSET(fd, &fd_set_copy.fd_set_read) != 0 ? 1 : 0);
+			issetwrite = (FD_ISSET(fd, &fd_set_copy.fd_set_write) != 0 ? 1 : 0);
+			issetexcept = (FD_ISSET(fd, &fd_set_copy.fd_set_except) != 0 ? 1 : 0);
+
+			std::cout << "Current fd being checked : " << fd << "\n";
+			std::cout << "Is in fd_set_copy.fd_set_read : " << issetread << "\n";
+			std::cout << "Is in fd_set_copy.fd_set_write : " << issetwrite << "\n";
+			std::cout << "Is in fd_set_copy.fd_set_except : " << issetexcept << "\n";
+
+			// Call the service's subroutine if one of its fds is "active"
+			if (issetread)
+				(*it).ptr->read(fd);
+			if (issetwrite)
+				(*it).ptr->write(fd);
+		}
 	}
+	// sleep for reaability purposes when testing
+	sleep(1);
 	return (0);
 }
 
